@@ -16,7 +16,6 @@ services:
       target: php
     volumes:
       - ./public/:/var/www/public/
-      - ./php.ini:/usr/local/etc/php/php.ini
       - image:/var/www/upload/image/
   mysql:
     container_name: mysql
@@ -32,8 +31,11 @@ services:
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
       --max_allowed_packet=4MB
+  redis:
+    container_name: redis
+    image: redis:latest
+    ports:
+      - 6379:6379
 volumes:
   mysql:
   image:
-
-

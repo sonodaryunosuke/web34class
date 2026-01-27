@@ -1,11 +1,17 @@
 <?php
 $dbh = new PDO('mysql:host=mysql;dbname=example_db', 'root', '');
 
-if (isset($_POST['body'])) {
-  // POSTで送られてくるフォームパラメータ body がある場合
+session_start();
+if (empty($_SESSION['login_user_id'])) { // 非ログインの場合利用不可
+  header("HTTP/1.1 302 Found");
+  header("Location: /login.php");
+  return;
+}
+
+// 投稿処理
+if (isset($_POST['body']) && !empty($_SESSION['login_user_id'])) {
 
   $image_filename = null;
-
   if (!empty($_POST['image_base64'])) {
     // 先頭の data:~base64, のところは削る
     $base64 = preg_replace('/^data:.+base64,/', '', $_POST['image_base64']);
@@ -14,28 +20,48 @@ if (isset($_POST['body'])) {
     $image_binary = base64_decode($base64);
 
     // 新しいファイル名を決めてバイナリを出力する
-    $image_filename = strval(time()) . bin2hex(random_bytes(25)) . '.jpg';
+    $image_filename = strval(time()) . bin2hex(random_bytes(25)) . '.png';
     $filepath =  '/var/www/upload/image/' . $image_filename;
     file_put_contents($filepath, $image_binary);
   }
 
   // insertする
-  $insert_sth = $dbh->prepare("INSERT INTO bbs_entries (body, image_filename) VALUES (:body, :image_filename)");
+  $insert_sth = $dbh->prepare("INSERT INTO bbs_entries (user_id, body, image_filename) VALUES (:user_id, :body, :image_filename)");
   $insert_sth->execute([
-    ':body' => $_POST['body'],
-    ':image_filename' => $image_filename,
+    ':user_id' => $_SESSION['login_user_id'], // ログインしている会員情報の主キー
+    ':body' => $_POST['body'], // フォームから送られてきた投稿本文
+    ':image_filename' => $image_filename, // 保存した画像の名前 (nullの場合もある)
   ]);
 
   // 処理が終わったらリダイレクトする
   // リダイレクトしないと，リロード時にまた同じ内容でPOSTすることになる
-  header("HTTP/1.1 302 Found");
-  header("Location: ./bbsimagetest.php");
+  header("HTTP/1.1 303 See Other");
+  header("Location: ./timeline.php");
   return;
 }
 
-// いままで保存してきたものを取得
-$select_sth = $dbh->prepare('SELECT * FROM bbs_entries ORDER BY created_at DESC');
-$select_sth->execute();
+// 表示対象の会員ID(フォローしている会員)のリストを取得
+$target_user_ids_select_sth = $dbh->prepare(
+  'SELECT * FROM user_relationships WHERE follower_user_id = :follower_user_id'
+);
+$target_user_ids_select_sth->execute([
+  ':follower_user_id' => $_SESSION['login_user_id'],
+]);
+$target_user_ids = array_map(
+  function ($relationship) {
+      return $relationship['followee_user_id'];
+  },
+  $target_user_ids_select_sth->fetchAll()
+); // array_map で followee_user_id カラムだけ抜き出す
+$target_user_ids[] = $_SESSION['login_user_id']; // 自分自身の投稿も表示対象とする
+
+// 投稿データを取得。IN句の中身もプレースホルダを使うために、$target_user_ids の要素数だけ「?」を付けている。
+$sql = 'SELECT bbs_entries.*, users.name AS user_name, users.icon_filename AS user_icon_filename'
+  . ' FROM bbs_entries INNER JOIN users ON bbs_entries.user_id = users.id'
+  . ' WHERE bbs_entries.user_id IN (' . substr(str_repeat(',?', count($target_user_ids)), 1) . ')'
+  . ' ORDER BY bbs_entries.created_at DESC';
+$select_sth = $dbh->prepare($sql);
+$select_sth->execute($target_user_ids);
 
 // bodyのHTMLを出力するための関数を用意する
 function bodyFilter (string $body): string
@@ -50,39 +76,52 @@ function bodyFilter (string $body): string
   return $body;
 }
 ?>
-<head>
-  <title>画像投稿できる掲示板</title>
-</head>
 
-<!-- フォームのPOST先はこのファイル自身にする -->
-<form method="POST" action="./bbsimagetest.php" enctype="multipart/form-data">
-  <textarea name="body" required></textarea>
-  <div style="margin: 1em 0;">
-    <input type="file" accept="image/*" name="image" id="imageInput">
-    <div id="imagePreviewArea" style="display: none;">
-      <div style="display: flex; align-items: start; margin: 1em 0;">
-        <span style="margin-right: 1em;">プレビュー:</span>
-        <canvas id="imagePreviewCanvas" style=""></canvas>
-      </div>
+<?php if(empty($_SESSION['login_user_id'])): ?>
+  投稿するには<a href="/login.php">ログイン</a>が必要です。
+<?php else: ?>
+  現在ログイン中 (<a href="/setting/index.php">設定画面はこちら</a>)
+  <!-- フォームのPOST先はこのファイル自身にする -->
+  <form method="POST">
+    <textarea name="body" required></textarea>
+    <div style="margin: 1em 0;">
+      <input type="file" accept="image/*" name="image" id="imageInput">
     </div>
-  </div>
-  <input id="imageBase64Input" type="hidden" name="image_base64"><!-- base64を送る用のinput (非表示) -->
-  <canvas id="imageCanvas" style="display: none;"></canvas><!-- 画像縮小に使うcanvas (非表示) -->
-  <button type="submit">送信</button>
-</form>
-
+    <input id="imageBase64Input" type="hidden" name="image_base64"><!-- base64を送る用のinput (非表示) -->
+    <canvas id="imageCanvas" style="display: none;"></canvas><!-- 画像縮小に使うcanvas (非表示) -->
+    <button type="submit">送信</button>
+  </form>
+<?php endif; ?>
 <hr>
 
 <?php foreach($select_sth as $entry): ?>
   <dl style="margin-bottom: 1em; padding-bottom: 1em; border-bottom: 1px solid #ccc;">
-    <dt id="entry<?= htmlspecialchars($entry['id']) ?>">ID</dt>
-    <dd><?= $entry['id'] ?></dd>
+    <dt id="entry<?= htmlspecialchars($entry['id']) ?>">
+      番号
+    </dt>
+    <dd>
+      <?= htmlspecialchars($entry['id']) ?>
+    </dd>
+    <dt>
+      投稿者
+    </dt>
+    <dd>
+      <a href="/profile.php?user_id=<?= $entry['user_id'] ?>">
+        <?php if(!empty($entry['user_icon_filename'])): // アイコン画像がある場合は表示 ?>
+        <img src="/image/<?= $entry['user_icon_filename'] ?>"
+          style="height: 2em; width: 2em; border-radius: 50%; object-fit: cover;">
+        <?php endif; ?>
+
+        <?= htmlspecialchars($entry['user_name']) ?>
+        (ID: <?= htmlspecialchars($entry['user_id']) ?>)
+      </a>
+    </dd>
     <dt>日時</dt>
     <dd><?= $entry['created_at'] ?></dd>
     <dt>内容</dt>
     <dd>
       <?= bodyFilter($entry['body']) ?>
-      <?php if(!empty($entry['image_filename'])): // 画像がある場合は img 要素を使って表示 ?>
+      <?php if(!empty($entry['image_filename'])): ?>
       <div>
         <img src="/image/<?= $entry['image_filename'] ?>" style="max-height: 10em;">
       </div>
@@ -94,22 +133,18 @@ function bodyFilter (string $body): string
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const imageInput = document.getElementById("imageInput");
-  const previewArea = document.getElementById("imagePreviewArea"); // プレビューエリア(div)
-  const previewCanvas = document.getElementById("imagePreviewCanvas"); // プレビューを描画するcanvas
   imageInput.addEventListener("change", () => {
-    // プレビューエリアを一旦非表示に
-    previewArea.style.display = 'none';
-
     if (imageInput.files.length < 1) {
       // 未選択の場合
       return;
     }
+
     const file = imageInput.files[0];
     if (!file.type.startsWith('image/')){ // 画像でなければスキップ
       return;
     }
 
-    // 画像縮小処理 & base64のテキストに変換して name="image_base64" なinput要素につっこむ
+    // 画像縮小処理
     const imageBase64Input = document.getElementById("imageBase64Input"); // base64を送るようのinput
     const canvas = document.getElementById("imageCanvas"); // 描画するcanvas
     const reader = new FileReader();
@@ -120,7 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // 元の縦横比を保ったまま縮小するサイズを決めてcanvasの縦横に指定する
         const originalWidth = image.naturalWidth; // 元画像の横幅
         const originalHeight = image.naturalHeight; // 元画像の高さ
-        const maxLength = 2000; // 横幅も高さも2000px以下に縮小するものとする
+        const maxLength = 1000; // 横幅も高さも1000以下に縮小するものとする
         if (originalWidth <= maxLength && originalHeight <= maxLength) { // どちらもmaxLength以下の場合そのまま
             canvas.width = originalWidth;
             canvas.height = originalHeight;
@@ -136,20 +171,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const context = canvas.getContext("2d");
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-        // canvasの内容をjpeg形式のbase64に変換しinputのvalueに設定
-        imageBase64Input.value = canvas.toDataURL('image/jpeg', 0.9);
-
-        // 元のファイル選択を消す (このままだと送られてしまうから)
-        imageInput.value = "";
-
-        // プレビューエリアの display:none (非表示) を解除
-        previewArea.style.display = '';
-        // プレビューcanvasの高さを200px固定として、元画像の縦横比から横幅を設定
-        previewCanvas.height = canvas.height = '200';
-        previewCanvas.width = previewCanvas.height * originalWidth / originalHeight;
-        // プレビューcanvasへ画像を描画
-        const previewContext = previewCanvas.getContext("2d");
-        previewContext.drawImage(image, 0, 0, previewCanvas.width, previewCanvas.height);
+        // canvasの内容をbase64に変換しinputのvalueに設定
+        imageBase64Input.value = canvas.toDataURL();
       };
       image.src = reader.result;
     };
