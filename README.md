@@ -16,7 +16,7 @@ sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 ### ソースコードの配置
 ```bash
 sudo yum install git -y
-git　clone
+git　clone　https://github.com/sonodaryunosuke/web34class.git
 ```
 ### イメージのビルド & コンテナ起動
 ```bash
