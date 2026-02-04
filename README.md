@@ -2,21 +2,6 @@
 
 このリポジトリは **PHP 8.4 (FPM, Alpineベース) + Nginx + MySQL 8.4** の開発環境を Docker Compose で構築するためのサンプルです。  
 
----
-
-##  ディレクトリ構成
-
-├── Dockerfile
-├── compose.yml
-├── nginx/
-│ └── conf.d/ # Nginxの仮想ホスト設定
-├── php.ini # PHP設定ファイル
-├── public/ # Webルート (DocumentRoot)
-└── README.md
-
-
----
-
 ##  セットアップ手順
 
 ```bash
