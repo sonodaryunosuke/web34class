@@ -18,6 +18,8 @@
 ---
 
 ##  セットアップ手順
+
+```
 sudo yum install -y docker
 sudo systemctl start docker
 sudo systemctl enable docker
@@ -28,13 +30,22 @@ compose　install方法
 sudo mkdir -p /usr/local/lib/docker/cli-plugins/
 sudo curl -SL https://github.com/docker/compose/releases/download/v2.36.0/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
 sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-### 1. イメージのビルド & コンテナ起動
+```
+### ソースコードの配置
+https://gitforwindows.org/にアクセスし、gitをインストール
+```bash
+git　clone
+```
+### イメージのビルド & コンテナ起動
 ```bash
 docker compose up -d --build
-
-### 2. SQLの作成
+```
+### 1. SQLの作成
+```bash
 docker exec -it mysql mysql -u root example_db
-
+```
+### 2. tableの作成
+```sql
 CREATE TABLE `access_logs` (
   `id` INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `user_agent` TEXT NOT NULL,
@@ -68,6 +79,7 @@ CREATE TABLE `users` (
   `birthday` DATE DEFAULT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+```
 
 phpで作成したloginした人のみが使える掲示板です。
 
