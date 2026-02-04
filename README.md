@@ -14,15 +14,15 @@ sudo curl -SL https://github.com/docker/compose/releases/download/v2.36.0/docker
 sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 ```
 ### ソースコードの配置
-https://gitforwindows.org/ にアクセスし、gitをインストール
 ```bash
+sudo yum install git -y
 git　clone
 ```
 ### イメージのビルド & コンテナ起動
 ```bash
 docker compose up -d --build
 ```
-### 1. SQLの作成
+### 1. mySQLのアクセス方法
 ```bash
 docker exec -it mysql mysql -u root example_db
 ```
