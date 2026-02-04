@@ -1,6 +1,6 @@
 # PHP + Nginx + MySQL (Docker Compose)
 
-このリポジトリは **PHP 8.4 (FPM, Alpineベース) + Nginx + MySQL 8.4** の開発環境を Docker Compose で構築するためのサンプルです。  
+このリポジトリは **PHP 8.4 + Nginx + MySQL 8.4** の開発環境を Docker Compose で構築するためのサンプルです。  
 
 ##  セットアップ手順
 
