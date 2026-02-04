@@ -20,13 +20,14 @@ git　clone　https://github.com/sonodaryunosuke/web34class.git
 ```
 ### イメージのビルド & コンテナ起動
 ```bash
-docker compose up -d --build
+docker compose build
+docker compose up
 ```
-### 1. mySQLのアクセス方法
+### mySQLのアクセス方法
 ```bash
 docker exec -it mysql mysql -u root example_db
 ```
-### 2. tableの作成
+### tableの作成
 ```sql
 CREATE TABLE `access_logs` (
   `id` INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
